@@ -1,30 +1,17 @@
 import { useState, useEffect } from "react";
-import {
-  Authenticator,
-  Button,
-  Text,
-  TextField,
-  Heading,
-  Flex,
-  View,
-  Image,
-  Grid,
-  Divider,
-} from "@aws-amplify/ui-react";
+import { Authenticator, Divider } from "@aws-amplify/ui-react";
 import { Amplify } from "aws-amplify";
 import "@aws-amplify/ui-react/styles.css";
-import { getUrl } from "aws-amplify/storage";
-import { uploadData } from "aws-amplify/storage";
+import { getUrl, uploadData } from "aws-amplify/storage";
 import { generateClient } from "aws-amplify/data";
 import outputs from "../amplify_outputs.json";
+import "./index.css"; // Make sure this line is included
+
 /**
  * @type {import('aws-amplify/data').Client<import('../amplify/data/resource').Schema>}
  */
-
 Amplify.configure(outputs);
-const client = generateClient({
-  authMode: "userPool",
-});
+const client = generateClient({ authMode: "userPool" });
 
 export default function App() {
   const [notes, setNotes] = useState([]);
@@ -38,147 +25,83 @@ export default function App() {
     await Promise.all(
       notes.map(async (note) => {
         if (note.image) {
-          const linkToStorageFile = await getUrl({
+          const link = await getUrl({
             path: ({ identityId }) => `media/${identityId}/${note.image}`,
           });
-          console.log(linkToStorageFile.url);
-          note.image = linkToStorageFile.url;
+          note.image = link.url;
         }
         return note;
       })
     );
-    console.log(notes);
     setNotes(notes);
   }
 
   async function createNote(event) {
     event.preventDefault();
     const form = new FormData(event.target);
-    console.log(form.get("image").name);
+    const imageFile = form.get("image");
 
     const { data: newNote } = await client.models.Note.create({
       name: form.get("name"),
       description: form.get("description"),
-      image: form.get("image").name,
+      image: imageFile?.name,
     });
 
-    console.log(newNote);
-    if (newNote.image)
-      if (newNote.image)
-        await uploadData({
-          path: ({ identityId }) => `media/${identityId}/${newNote.image}`,
-
-          data: form.get("image"),
-        }).result;
+    if (newNote.image && imageFile) {
+      await uploadData({
+        path: ({ identityId }) => `media/${identityId}/${newNote.image}`,
+        data: imageFile,
+      }).result;
+    }
 
     fetchNotes();
     event.target.reset();
   }
 
   async function deleteNote({ id }) {
-    const toBeDeletedNote = {
-      id: id,
-    };
-
-    const { data: deletedNote } = await client.models.Note.delete(
-      toBeDeletedNote
-    );
-    console.log(deletedNote);
-
+    await client.models.Note.delete({ id });
     fetchNotes();
   }
 
   return (
     <Authenticator>
       {({ signOut }) => (
-        <Flex
-          className="App"
-          justifyContent="center"
-          alignItems="center"
-          direction="column"
-          width="70%"
-          margin="0 auto"
-        >
-          <Heading level={1}>My Notes App</Heading>
-          <View as="form" margin="3rem 0" onSubmit={createNote}>
-            <Flex
-              direction="column"
-              justifyContent="center"
-              gap="2rem"
-              padding="2rem"
-            >
-              <TextField
-                name="name"
-                placeholder="Note Name"
-                label="Note Name"
-                labelHidden
-                variation="quiet"
-                required
-              />
-              <TextField
-                name="description"
-                placeholder="Note Description"
-                label="Note Description"
-                labelHidden
-                variation="quiet"
-                required
-              />
-              <View
-                name="image"
-                as="input"
-                type="file"
-                alignSelf={"end"}
-                accept="image/png, image/jpeg"
-              />
+        <div className="app">
+          <h1 className="title">📝 My Notes App</h1>
 
-              <Button type="submit" variation="primary">
-                Create Note
-              </Button>
-            </Flex>
-          </View>
-          <Divider />
-          <Heading level={2}>Current Notes</Heading>
-          <Grid
-            margin="3rem 0"
-            autoFlow="column"
-            justifyContent="center"
-            gap="2rem"
-            alignContent="center"
-          >
+          <form onSubmit={createNote} className="note-form">
+            <input type="text" name="name" placeholder="Note Name" required className="input" />
+            <input
+              type="text"
+              name="description"
+              placeholder="Note Description"
+              required
+              className="input"
+            />
+            <input type="file" name="image" accept="image/*" className="file-input" />
+            <button type="submit" className="btn btn-primary">Create Note</button>
+          </form>
+
+          <Divider className="divider" />
+
+          <h2 className="subtitle">📌 Current Notes</h2>
+          <div className="notes-grid">
             {notes.map((note) => (
-              <Flex
-                key={note.id || note.name}
-                direction="column"
-                justifyContent="center"
-                alignItems="center"
-                gap="2rem"
-                border="1px solid #ccc"
-                padding="2rem"
-                borderRadius="5%"
-                className="box"
-              >
-                <View>
-                  <Heading level="3">{note.name}</Heading>
-                </View>
-                <Text fontStyle="italic">{note.description}</Text>
+              <div key={note.id || note.name} className="note-card">
+                <h3 className="note-title">{note.name}</h3>
+                <p className="note-desc">{note.description}</p>
                 {note.image && (
-                  <Image
-                    src={note.image}
-                    alt={`visual aid for ${notes.name}`}
-                    style={{ width: 400 }}
-                  />
+                  <img src={note.image} alt={`visual for ${note.name}`} className="note-img" />
                 )}
-                <Button
-                  variation="destructive"
-                  onClick={() => deleteNote(note)}
-                >
-                  Delete note
-                </Button>
-              </Flex>
+                <button onClick={() => deleteNote(note)} className="btn btn-danger">
+                  Delete Note
+                </button>
+              </div>
             ))}
-          </Grid>
-          <Button onClick={signOut}>Sign Out</Button>
-        </Flex>
+          </div>
+
+          <button onClick={signOut} className="btn btn-secondary">Sign Out</button>
+        </div>
       )}
     </Authenticator>
   );
